@@ -78,11 +78,11 @@ def clean_text(text):
   except:    
     return ' '
 
-posts = pd.read_csv('/content/drive/My Drive/ml_dataset/posts.csv',engine='python')
-users = pd.read_csv('/content/drive/My Drive/ml_dataset/users.csv')
-views = pd.read_csv('/content/drive/My Drive/ml_dataset/views.csv')
-favorites = pd.read_csv('/content/drive/My Drive/ml_dataset/favourites.csv')
-userPosts = pd.read_csv('/content/drive/My Drive/ml_dataset/usersPosts.csv')
+posts = pd.read_csv('./posts.csv',engine='python')
+users = pd.read_csv('./users.csv')
+views = pd.read_csv('./views.csv')
+favorites = pd.read_csv('./favourites.csv')
+userPosts = pd.read_csv('./usersPosts.csv')
 
 views = views[views['user_id']!='anonymous']
 posts = posts.dropna(subset=['title',' post_type','tags'])
@@ -173,7 +173,7 @@ for uid,pid in zip(favorites['user_id'],favorites['post_id']):
   users_info[uid] = np.add(users_info[uid],a)
   assert(np.sum(users_info[uid])!=0)
 
-"""## MODEL 2
+"""## MODEL 
 
 Generating -ive datapoints for each user where the posts chosen have categories that are not seen by the user
 """
@@ -282,7 +282,9 @@ model = create_model()
 
 model.compile(optimizer=Adagrad(lr=0.0001), loss='binary_crossentropy',metrics=['accuracy'])
 
+print("model training...")
 model.fit_generator(train_dg,validation_data=test_dg,epochs=500)
+print("model trained")
 
 """Retrieving trained user embeddings"""
 
@@ -291,7 +293,7 @@ user_embeddings = model.get_layer('embedding').get_weights()[0]
 # pickle.dump(user_embeddings,open('/content/drive/My Drive/ml_dataset/user_embed.pkl','wb'))
 # user_embeddings = pickle.load(open('/content/drive/My Drive/ml_dataset/user_embed.pkl','rb'))
 
-follows = pd.read_csv('/content/drive/My Drive/ml_dataset/follows.csv')
+follows = pd.read_csv('/follows.csv')
 
 follows = follows.drop(['timestamp'],axis=1)
 
@@ -329,14 +331,12 @@ walks = rw.run(nodes=list(uids),length=100,n=2,metapaths=[['default','default']]
 user_model =  Word2Vec(walks,size=128,window=5)
 user_model.wv.vectors.shape
 
-pickle.dump(user_model,open('/content/drive/My Drive/ml_dataset/node.pkl','wb'))
-# user_model = pickle.load(open('/content/drive/My Drive/ml_dataset/node.pkl','rb'))
-
 """Each user represented by 128 dim vector"""
 
 node_ids = user_model.wv.index2word
 node_embed = user_model.wv.vectors
 
+print("Pushing to database...")
 userCollection = cluster.Users.User_Embeddings
 userCollection.delete_many({})
 followCollection = cluster.Users.Follows
@@ -372,4 +372,4 @@ user_embed = pickle.dumps(user_embeddings)
 catCol.insert_one({"Categories":categories})
 
 embedCol.insert_one({"Matrix":user_embed})
-
+print("Done!")
