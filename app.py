@@ -3,7 +3,9 @@ from flask import Flask, render_template
 from final import model_train
 
 app = Flask(__name__)
-
+app.config['ENV']='development'
+app.config['DEBUG']=True
+print("Imports done")
 @app.route('/')
 def home():
     return render_template('train.html')
