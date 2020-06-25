@@ -20,7 +20,6 @@ from nltk import word_tokenize
 from nltk.corpus import stopwords
 from gensim.models import Word2Vec
 from collections import defaultdict
-nltk.download('punkt')
 from sklearn.metrics.pairwise import cosine_similarity,cosine_distances
 from scipy import spatial
 import random
@@ -33,8 +32,7 @@ import networkx as nx
 from networkx.algorithms import bipartite
 from stellargraph.data import UniformRandomMetaPathWalk
 from stellargraph import StellarGraph,StellarDiGraph
-
-cluster = MongoClient('mongodb+srv://nirmal:2000@cluster0-2aasp.mongodb.net/<dbname>?retryWrites=true&w=majority')
+import requests
 
 class Sentence2Vec:
     def __init__(self, model_file):
@@ -78,6 +76,7 @@ def clean_text(text):
 
 def model_train():
   print("Loading files..")
+  cluster = MongoClient('mongodb+srv://nirmal:2000@cluster0-2aasp.mongodb.net/<dbname>?retryWrites=true&w=majority')
   posts = pd.read_csv('./posts.csv',engine='python')
   users = pd.read_csv('./users.csv')
   views = pd.read_csv('./views.csv')
@@ -288,21 +287,18 @@ def model_train():
   model.compile(optimizer=Adagrad(lr=0.0001), loss='binary_crossentropy',metrics=['accuracy'])
 
   print("model started training...")
-  model.fit_generator(train_dg,validation_data=test_dg,epochs=5)
+  model.fit_generator(train_dg,validation_data=test_dg,epochs=1)
   print("Model trained")
 
   """Retrieving trained user embeddings"""
 
   user_embeddings = model.get_layer('embedding').get_weights()[0]
 
-  # pickle.dump(user_embeddings,open('/content/drive/My Drive/ml_dataset/user_embed.pkl','wb'))
-  # user_embeddings = pickle.load(open('/content/drive/My Drive/ml_dataset/user_embed.pkl','rb'))
-
   follows = pd.read_csv('./follows.csv')
 
   follows = follows.drop(['timestamp'],axis=1)
 
-  """User present in follows.csv"""
+  """Users present in follows.csv"""
 
   uids = np.concatenate((follows['user_id'].values,follows['follower_id'].values))
   uids = set(uids)
@@ -396,6 +392,5 @@ def model_train():
       to_ins.append(noob)
 
   posted.insert_many(to_ins)
-
-
+  requests.get('http://3.7.185.166/train')
   print("Done!")

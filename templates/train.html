@@ -5,6 +5,7 @@
     <body>
         <script>
             function train_model(url,func){
+                document.getElementById('button').disabled = true
                 var xhttp = new XMLHttpRequest();
                 xhttp.onreadystatechange = function() {
                     if (this.readyState == 4 && this.status == 200) {                        
@@ -15,9 +16,11 @@
                 xhttp.send()                             
             }
             function done(xhttp){
-                alert(xhttp.responseText)
+                alert(xhttp.responseText);
+                document.getElementById('para') = xhttp.responseText
             }        
         </script>
-        <button name="Train" onclick="train_model('/train',done)">Train</button>
+        <button name="Train" id="button"  onclick="train_model('/train',done)">Train</button>
+        <p id="para"></p>
     </body>
 </html>
