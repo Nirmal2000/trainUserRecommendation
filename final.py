@@ -110,7 +110,7 @@ def model_train():
   ''' Website DB URI '''
   websiteDB = MongoClient('URI')
 
-  db = websiteDB.ProducDataset
+  db = websiteDB.thesocialcomment  # Name of the dataset
   pcol = db.posts
   vcol= db.views
   fcol= db.follows
@@ -137,7 +137,6 @@ def model_train():
   views = views.dropna(subset=['user']) 
   posts = posts.dropna(subset=['title','postType','tags','category'])
   posts = posts[posts['category'].str.len()!=0]
-  # posts['category'] = posts['category'].fillna(posts['tags'])
   
   posts['tags'] = posts['tags'].apply(text_clean)
   
