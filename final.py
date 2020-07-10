@@ -108,9 +108,9 @@ def model_train():
   cluster = MongoClient('mongodb+srv://nirmal:2000@cluster0-2aasp.mongodb.net/<dbname>?retryWrites=true&w=majority')
 
   ''' Website DB URI '''
-  websiteDB = MongoClient('URI')
+  #websiteDB = MongoClient('URI')
 
-  db = websiteDB.thesocialcomment  # Name of the dataset
+  db = cluster.ProducDataset  # Name of the dataset
   pcol = db.posts
   vcol= db.views
   fcol= db.follows
@@ -127,8 +127,11 @@ def model_train():
   ''' Create DataFrame for preprocessing '''
   posts = pd.DataFrame(list(pcol.find()))
   views = pd.DataFrame(list(vcol.find()))
+
   favorites = pd.DataFrame(list(favcol.find()))
-  userPosts = posts[['_id','postedBy']]  
+  favorites['userID'] = favorites['userID'].apply(str)
+  favorites['postID'] = favorites['postID'].apply(str)  
+
   follows = pd.DataFrame(list(fcol.find()))
   print("Collections loaded..")
 
@@ -137,8 +140,13 @@ def model_train():
   views = views.dropna(subset=['user']) 
   posts = posts.dropna(subset=['title','postType','tags','category'])
   posts = posts[posts['category'].str.len()!=0]
-  
   posts['tags'] = posts['tags'].apply(text_clean)
+
+  posts['_id'] = posts['_id'].apply(str)
+  posts['postedBy'] = posts['postedBy'].apply(str)
+  userPosts = posts[['_id','postedBy']]
+  views['user'] = views['user'].apply(str)
+  views['post'] = views['post'].apply(str)
   
   """ Getting categories"""
 
