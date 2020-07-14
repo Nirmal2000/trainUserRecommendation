@@ -1,7 +1,7 @@
 """
                                                 TRAIN USER RECOMMENDATION
         
-        Line 108: Recommendation Database MongoDB URI                
+        Line 110: Recommendation Database MongoDB URI                
 
         Database Name : Users
         Collections: 
@@ -12,8 +12,10 @@
         -> Categories
 
         Line 110: Website Databse MongoDB URI
-
-        Line 446: Replace the URL with UserRecommendation API (with same pathname)
+	Line 173: Saving Tag model to hard disk
+	Line 182: Saving Title model to hard disk
+	Line 407-464: Pushing trained data to Recommendation Database
+        Line 448: Replace the URL with UserRecommendation API (with same pathname)
 
 """
 import pandas as pd
@@ -59,7 +61,7 @@ class Sentence2Vec:
     def load(self, model_file):
         self.model = Word2Vec.load(model_file)
 
-    def get_vector(self, sentence):        
+    def get_vector(self, sentence):
         sentence = re.sub(r'[^A-Za-z0-9\s]', r'', str(sentence).lower())
 
         vectors = [self.model.wv[w] for w in word_tokenize(sentence)
@@ -94,10 +96,10 @@ def clean_text(text):
 def text_clean(text): 
   try:
     text = ' '.join(text)
-    text = text.lower()    
+    text = text.lower()
     text = re.sub('[^A-Za-z]+', ' ', text)
     return text
-  except:    
+  except:
     return ' '
 
 
@@ -116,32 +118,27 @@ def model_train():
   fcol= db.follows
   favcol = db.favourites
 
-
-  # posts = pd.read_csv('./posts.csv',engine='python')
-  # users = pd.read_csv('./users.csv')
-  # views = pd.read_csv('./views.csv')
-  # favorites = pd.read_csv('./favourites.csv')
-  # userPosts = pd.read_csv('./usersPosts.csv')
-  # print("Files loaded..")
-
   ''' Create DataFrame for preprocessing '''
   posts = pd.DataFrame(list(pcol.find()))
   views = pd.DataFrame(list(vcol.find()))
-
   favorites = pd.DataFrame(list(favcol.find()))
-  favorites['userID'] = favorites['userID'].apply(str)
-  favorites['postID'] = favorites['postID'].apply(str)  
-
   follows = pd.DataFrame(list(fcol.find()))
   print("Collections loaded..")
 
+
   print("Started preprocessing..")
-  
-  views = views.dropna(subset=['user']) 
+
+  ''' Converting ObjectID to string  '''
+  favorites['userID'] = favorites['userID'].apply(str)
+  favorites['postID'] = favorites['postID'].apply(str)
+
+  ''' Removing rows with NULL '''
+  views = views.dropna(subset=['user'])
   posts = posts.dropna(subset=['title','postType','tags','category'])
   posts = posts[posts['category'].str.len()!=0]
   posts['tags'] = posts['tags'].apply(text_clean)
 
+ ''' Converting ObjectID to string  '''
   posts['_id'] = posts['_id'].apply(str)
   posts['postedBy'] = posts['postedBy'].apply(str)
   userPosts = posts[['_id','postedBy']]
@@ -171,15 +168,19 @@ def model_train():
   
   token_tag = [word_tokenize(tag) for tag in posts['tags'].values.tolist()]
   tag_model = Word2Vec(token_tag,sg=1,size=100,window=5, min_count=5, workers=4,iter=100)
-  tag_model.save('./tag.model')
 
+  ''' Saving Word2Vec tags model to harddisk '''
+  tag_model.save('./tag.model')
+  ''' Loading the model from hard disk '''
   tag_model = Sentence2Vec('./tag.model')
 
-  processed_title = posts['title'].apply(clean_text)  
+  processed_title = posts['title'].apply(clean_text)
   token_title = [word_tokenize(tag) for tag in processed_title]
   title_model = Word2Vec(token_title,sg=1,size=100,window=5, min_count=5, workers=4,iter=100)
-  title_model.save('./title.model')
 
+  ''' Saving Word2Vec title model to harddisk '''
+  title_model.save('./title.model')
+  ''' Loading the model from hard disk '''
   title_model = Sentence2Vec('./title.model')
 
   posts_info = dict()
@@ -210,31 +211,37 @@ def model_train():
     userPosts = userPosts[userPosts['_id']!=pid]
     favorites = favorites[favorites['postID']!=pid]
 
+
   """Representing the user based on the categories seen by the user"""
 
   users_info = defaultdict(lambda :np.zeros((len(uniq_category))))
   for uid,pid in zip(views['user'],views['post']):    
-    a = posts_info[pid]['cat'] #,posts_info[pid]['pt']))#,posts_info[pid]['title_ohe']))    
+    a = posts_info[pid]['cat']
     users_info[uid] = np.add(users_info[uid],a)
     assert(np.sum(users_info[uid])!=0)
+
 
   """Increasing the weightage for categories by 100% for posts posted by user"""
 
   for uid,pid in zip(userPosts['postedBy'],userPosts['_id']):    
-    a = posts_info[pid]['cat'] #,posts_info[pid]['pt']))#,posts_info[pid]['title_ohe']))
+    a = posts_info[pid]['cat']
     users_info[uid] = np.add(users_info[uid],a)
     assert(np.sum(users_info[uid])!=0)
+
 
   """Increasing weightage for categories by 50% for favorite posts"""
 
-  for uid,pid in zip(favorites['userID'],favorites['postID']):    
-    a = 1/2*posts_info[pid]['cat'] #,posts_info[pid]['pt'])))#,posts_info[pid]['title_ohe'])))
+  for uid,pid in zip(favorites['userID'],favorites['postID']):
+    a = 1/2*posts_info[pid]['cat']
     users_info[uid] = np.add(users_info[uid],a)
     assert(np.sum(users_info[uid])!=0)
 
-  """## MODEL 
+
+
+  """					MODEL
 
   Generating -ive datapoints for each user where the posts chosen have categories that are not seen by the user
+
   """
 
   def gen_pseudoDP(user_id):
@@ -245,9 +252,9 @@ def model_train():
       cat = posts_info[pid]['cat']
       flag=0
       for i in range(len(cat)):
-        if (cat[i]!=0 and cat_user[i] != 0):        
+        if (cat[i]!=0 and cat_user[i] != 0):
           flag=1
-          break    
+          break
       if flag==0:
         arr.append([uid,pid,0])
         k+=1
@@ -352,9 +359,9 @@ def model_train():
 
   user_embeddings = model.get_layer('embedding').get_weights()[0]
 
-  
 
-  follows = follows.drop(['followedOn'],axis=1)  
+  follows = follows.drop(['followedOn'],axis=1)
+  ''' Converting ObjectId to string '''
   follows['followed'] = follows['followed'].apply(str)
   follows['follower'] = follows['follower'].apply(str)
 
@@ -378,11 +385,11 @@ def model_train():
 
   rw = UniformRandomMetaPathWalk(StellarDiGraph(G))
 
-  """Creating random walks.
+  """		Creating random walks.
 
   Each walk can be seen as a chain:  uid->uid->uid ... 
-
   They are of length 100
+
   """
 
   walks = rw.run(nodes=list(uids),length=100,n=2,metapaths=[['default','default']])
@@ -398,16 +405,13 @@ def model_train():
   node_embed = user_model.wv.vectors
 
   print("Pushing to database...")
+
   userCollection = cluster.Users.User_Embeddings
   userCollection.delete_many({})
   followCollection = cluster.Users.Follows
   followCollection.delete_many({})
   posted = cluster.Users.Posted
   posted.delete_many({})
-  catCol = cluster.Users.Categories
-  catCol.delete_many({})
-  embedCol = cluster.Users.Embedding_Matrix
-  embedCol.delete_many({})
 
   folDict = dict()
   for i,id in enumerate(node_ids):
@@ -422,7 +426,10 @@ def model_train():
       yo = node_embed[folDict[user]].tolist()
       user_ins.append({'user_id':user, 'user_embed':embed, 'node_embed':yo})
 
+
+  ''' Inserting embeddings for all users to User_Embeddings collection '''
   userCollection.insert_many(user_ins)
+
 
   fol=[]
   for uid,fid in tqdm(zip(follows['followed'],follows['follower'])):
@@ -431,13 +438,16 @@ def model_train():
       d['follower_id'] = fid
       fol.append(d)
 
+
+  ''' Inserting followed-follower to Follows collection '''
   followCollection.insert_many(fol)
 
-  categories = pickle.dumps(uniq_category)
-  user_embed = pickle.dumps(user_embeddings)
+  ''' Saving the categories to hard disk '''
+  pickle.dump(uniq_category,open('./categories.pkl','wb'))
 
-  catCol.insert_one({"Categories":categories})
-  embedCol.insert_one({"Matrix":user_embed})
+  ''' Saving the embedding matrix to hard disk '''
+  pickle.dump(user_embeddings,open('./user_embeddings.pkl','wb'))
+
 
 
   uids = set()
@@ -449,6 +459,12 @@ def model_train():
       noob['user_id']=uid    
       to_ins.append(noob)
 
+
+  ''' Inserting user_ids that have posted at least posted one post '''
   posted.insert_many(to_ins)
+
+
+  ''' Calling UserRecommendation API to clear the cache '''
   requests.get('http://3.7.185.166/train')
+
   print("Done!")
